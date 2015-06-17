@@ -2,13 +2,17 @@ module Lita
   module Handlers
     class Nagios < Handler
 
-      config :default_room
+      config :default_rooms, default: []
       config :cgi, default: "http://nagios.example.com/cgi-bin/nagios3"
       config :user, default: "nagiosuser"
       config :pass, default: "nagiospass"
       config :version, default: 3
       config :time_format, default: "iso8601"
       config :verify_ssl, default: true
+      config :ignore_host_state, default: false
+      config :ignore_service_state, default: false
+      config :service_notification_prefix, default: "icinga"
+      config :host_notification_prefix, default: "icinga"
 
       def initialize(robot)
         @site = NagiosHarder::Site.new(
@@ -158,11 +162,11 @@ module Lita
         params = request.params
 
         if params.has_key?("room")
-          room = params["room"]
-        elsif config.default_room
-          room = config.default_room
+          rooms = [params["room"]]
+        elsif config.default_rooms
+          rooms = Array(config.default_rooms)
         else
-          raise "Room must be defined. Either fix your command or specify a default room ('config.handlers.nagios.default_room')"
+          raise "Room must be defined. Either fix your command or specify a default rooms ('config.handlers.nagios.default_rooms')"
         end
 
         message = nil
@@ -178,15 +182,25 @@ module Lita
 
         case params["type"]
         when "service"
-          message += "#{params["host"]}:#{params["description"]} is #{params["state"]}: #{params["output"]}"
+          if config.ignore_service_state && config.ignore_service_state.match(params["state"].to_s)
+            return
+          else
+            message += "#{service_notification_prefix}: #{params["host"]}:#{params["description"]} is #{params["state"]}: #{params["output"]}"
+          end
         when "host"
-          message += "#{params["host"]} is #{params["state"]}: #{params["output"]}"
+          if config.ignore_host_state && config.ignore_host_state.match(params["state"].to_s)
+            return
+          else
+            message += "#{host_notification_prefix}: #{params["host"]} is #{params["state"]}: #{params["output"]}"
+          end
         else
           raise "Notification type must be defined in Nagios command ('host' or 'service')"
         end
 
-        target = Source.new(room: room)
-        robot.send_message(target, "nagios: #{message}")
+        rooms.each do |room|
+          target = Source.new(room: room)
+          robot.send_message(target, message)
+        end
       rescue Exception => e
         Lita.logger.error(e)
       end
