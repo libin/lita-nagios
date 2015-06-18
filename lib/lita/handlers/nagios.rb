@@ -9,10 +9,6 @@ module Lita
       config :version, default: 3
       config :time_format, default: "iso8601"
       config :verify_ssl, default: true
-      config :ignore_host_state, default: false
-      config :ignore_service_state, default: false
-      config :service_notification_prefix, default: "icinga"
-      config :host_notification_prefix, default: "icinga"
 
       def initialize(robot)
         @site = NagiosHarder::Site.new(
@@ -158,6 +154,19 @@ module Lita
 
       http.post "/nagios/notifications", :receive
 
+      def colorize(state, data)
+        case state.to_s.downcase
+        when "critical"
+          "\x0304\x02#{data}\x02\x03"
+        when "warning"
+          "\x0307\x02#{data}\x02\x03"
+        when "ok"
+          "\x0303\x02#{data}\x02\x03"
+        else
+          data
+        end
+      end
+
       def receive(request, response)
         params = request.params
 
@@ -183,15 +192,17 @@ module Lita
         case params["type"]
         when "service"
           if config.ignore_service_state && config.ignore_service_state.match(params["state"].to_s)
+            Lita.logger.info("Ignoring service state: #{params["state"]}")
             return
           else
-            message += "#{service_notification_prefix}: #{params["host"]}:#{params["description"]} is #{params["state"]}: #{params["output"]}"
+            message += "#{colorize(params['state'],params['state'])} SERVICE: #{params["host"]}:#{params["description"]} => #{params["output"]}"
           end
         when "host"
           if config.ignore_host_state && config.ignore_host_state.match(params["state"].to_s)
+            Lita.logger.info("Ignoring host state: #{params["state"]}")
             return
           else
-            message += "#{host_notification_prefix}: #{params["host"]} is #{params["state"]}: #{params["output"]}"
+            message += "#{colorize(params['state'],params['state'])} HOST: #{params["host"]} => #{params["output"]}"
           end
         else
           raise "Notification type must be defined in Nagios command ('host' or 'service')"
@@ -201,6 +212,7 @@ module Lita
           target = Source.new(room: room)
           robot.send_message(target, message)
         end
+
       rescue Exception => e
         Lita.logger.error(e)
       end
