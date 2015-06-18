@@ -9,6 +9,8 @@ module Lita
       config :version, default: 3
       config :time_format, default: "iso8601"
       config :verify_ssl, default: true
+      config :ignore_host_state, default: false
+      config :ignore_service_state, default: false
 
       def initialize(robot)
         @site = NagiosHarder::Site.new(
