@@ -158,7 +158,7 @@ module Lita
 
       def colorize(state, data)
         case state.to_s.downcase
-        when "critical"
+        when "critical", "down"
           "\x0304\x02#{data}\x02\x03"
         when "warning"
           "\x0307\x02#{data}\x02\x03"
@@ -197,14 +197,14 @@ module Lita
             Lita.logger.info("Ignoring service state: #{params["state"]}")
             return
           else
-            message += "#{colorize(params['state'],params['state'])} SERVICE: #{params["host"]}:#{params["description"]} => #{params["output"]}"
+            message += "#{colorize(params['state'],params['state'])}: #{params["description"]} on #{params["host"]} => #{params["output"]}"
           end
         when "host"
           if config.ignore_host_state && config.ignore_host_state.match(params["state"].to_s)
             Lita.logger.info("Ignoring host state: #{params["state"]}")
             return
           else
-            message += "#{colorize(params['state'],params['state'])} HOST: #{params["host"]} => #{params["output"]}"
+            message += "#{colorize(params['state'],params['state'])}: #{params["host"]} => #{params["output"]}"
           end
         else
           raise "Notification type must be defined in Nagios command ('host' or 'service')"
